@@ -5,6 +5,10 @@
 An infinite canvas for VFX artists, 3D artists, and the people who teach them.  
 Drop images, GIFs, videos, and audio. Annotate. Save. No internet. No telemetry. Your files never leave your machine.
 
+### [⬇ Download for Windows](https://github.com/p4inz-code/kanvaz/releases/latest)
+
+Grab the latest installer from the [Releases page](https://github.com/p4inz-code/kanvaz/releases/latest) — no setup or technical knowledge needed.
+
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ---
