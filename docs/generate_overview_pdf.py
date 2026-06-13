@@ -224,16 +224,19 @@ y = draw_paragraph(
 c.setFillColor(SURFACE)
 c.setStrokeColor(BORDER)
 c.setLineWidth(0.75)
-c.roundRect(margin, margin - 6, content_w, 46, 8, fill=1, stroke=1)
+c.roundRect(margin, margin - 6, content_w, 58, 8, fill=1, stroke=1)
 c.setFont('Helvetica-Bold', 9.5)
 c.setFillColor(GREEN)
-c.drawString(margin + 14, margin + 24, 'Free & open source — yours to keep')
+c.drawString(margin + 14, margin + 36, 'Free & open source — yours to keep')
 c.setFont('Helvetica', 9)
 c.setFillColor(TEXT3)
-c.drawString(margin + 14, margin + 10,
+c.drawString(margin + 14, margin + 22,
               'Found a bug or have an idea? Feedback is genuinely welcome —')
-c.drawString(margin + 14, margin - 2,
+c.drawString(margin + 14, margin + 10,
               'just tell Atharva directly (Northbyte Studios).')
+c.setFillColor(ACCENT)
+c.drawString(margin + 14, margin - 2,
+              'Get the latest version: github.com/p4inz-code/kanvaz')
 
 # Page number
 c.setFont('Helvetica', 8)

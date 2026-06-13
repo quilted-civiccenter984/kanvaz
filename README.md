@@ -103,6 +103,15 @@ These are stable, by-design limitations — not bugs, and not currently planned:
 
 ---
 
+## Documentation
+
+- [Technical Overview](docs/TECHNICAL_OVERVIEW.md) — architecture, module map, build conventions
+- [Privacy](PRIVACY.md) — what Kanvaz does (and doesn't) do with your data
+- [Third-Party Notices](THIRD_PARTY_NOTICES.md) — licensing for Electron and other bundled components
+- [Changelog](CHANGELOG.md) — version history
+
+---
+
 ## License
 
 MIT — free forever.  
