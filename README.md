@@ -9,6 +9,14 @@ Drop images, GIFs, videos, and audio. Annotate. Save. No internet. No telemetry.
 
 Grab the latest installer from the [Releases page](https://github.com/p4inz-code/kanvaz/releases/latest) — no setup or technical knowledge needed.
 
+> **Note:** Kanvaz isn't code-signed (signing certificates cost money and
+> this app is free). When you run the installer, Windows will likely show
+> a blue **"Windows protected your PC"** screen. This is normal for
+> unsigned indie apps — click **"More info"** → **"Run anyway"**.
+>
+> Prebuilt downloads are Windows only. macOS and Linux users can build
+> from source — see [Build installers](#build-installers) below.
+
 See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ---
