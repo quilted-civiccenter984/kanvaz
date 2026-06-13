@@ -1,0 +1,145 @@
+/* shortcuts.js — keyboard shortcut dispatcher */
+
+var KanvazShortcuts = (function() {
+
+  function init() {
+    document.addEventListener('keydown', function(e) {
+      handle(e);
+    });
+  }
+
+  function handle(e) {
+    var tag    = document.activeElement && document.activeElement.tagName;
+    var inText = (tag === 'TEXTAREA' || tag === 'INPUT');
+    var ctrl   = e.ctrlKey || e.metaKey;
+    var shift  = e.shiftKey;
+
+    /* Ignore OS key-repeat (holding a key down) for everything except
+       arrow-key nudge. Without this, holding Ctrl+D creates several
+       duplicates, holding P toggles pin on/off rapidly (stacked "Card
+       pinned"/"Card unpinned" toasts), holding Ctrl+S writes the file
+       repeatedly, etc. Arrow keys are the one case where holding-to-
+       repeat is the expected UX (continuous nudge). */
+    if (e.repeat
+        && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight'
+        && e.key !== 'ArrowUp'   && e.key !== 'ArrowDown') {
+      return;
+    }
+
+    /* ── Always fire regardless of focus ── */
+
+    if (ctrl && shift && e.key === 'S') {
+      e.preventDefault();
+      KanvazBoards.saveBoardAs();
+      return;
+    }
+
+    if (ctrl && !shift && e.key === 's') {
+      e.preventDefault();
+      KanvazBoards.saveBoard();
+      return;
+    }
+
+    if (ctrl && !shift && e.key === 'o') {
+      e.preventDefault();
+      KanvazBoards.openBoard();
+      return;
+    }
+
+    if (ctrl && shift && e.key === 'F') {
+      e.preventDefault();
+      KanvazUI.toggleMoodLock();
+      return;
+    }
+
+    /* ── Skip text inputs below this line ──
+       Ctrl+Z/Ctrl+Y/Ctrl+Shift+Z/Ctrl+A have native meanings inside a
+       textarea (undo typing, redo, select all text) — they must NOT be
+       hijacked into board-level undo/redo/select-all while the user is
+       typing in a note. Ctrl+S/Ctrl+Shift+S/Ctrl+O/Ctrl+Shift+F have no
+       native textarea meaning, so those stay above as "always fire". */
+    if (inText) return;
+
+    if (ctrl && !shift && e.key === 'z') {
+      e.preventDefault();
+      KanvazHistory.undo();
+      return;
+    }
+
+    if ((ctrl && !shift && e.key === 'y') || (ctrl && shift && e.key === 'Z')) {
+      e.preventDefault();
+      KanvazHistory.redo();
+      return;
+    }
+
+    if (ctrl && !shift && e.key === 'a') {
+      e.preventDefault();
+      KanvazCards.selectAll();
+      return;
+    }
+
+    /* Zoom */
+    if (e.key === '0') { e.preventDefault(); KanvazCanvas.zoomReset(); return; }
+    if (e.key === '=' || e.key === '+') { e.preventDefault(); KanvazCanvas.zoomIn(); return; }
+    if (e.key === '-' || e.key === '_') { e.preventDefault(); KanvazCanvas.zoomOut(); return; }
+    if (e.key === 'f' || e.key === 'F') { e.preventDefault(); KanvazCanvas.zoomFit(); return; }
+
+    /* Always on top */
+    if (e.key === 't' || e.key === 'T') { KanvazApp.toggleAlwaysOnTop(); return; }
+
+    /* Help */
+    if (e.key === '?') { KanvazUI.showShortcuts(); return; }
+
+    /* Escape — deselect, close panels */
+    if (e.key === 'Escape') {
+      KanvazUI.closeAll();
+      KanvazCards.deselectAll();
+      return;
+    }
+
+    /* Card shortcuts — only if a card is selected */
+    var sel = KanvazCards.getSelected();
+    if (!sel) return;
+
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      KanvazCards.deleteCard(sel);
+      return;
+    }
+
+    if (ctrl && e.key === 'd') {
+      e.preventDefault();
+      KanvazCards.duplicateCard(sel);
+      return;
+    }
+
+    if (e.key === 'p' || e.key === 'P') {
+      KanvazCards.togglePin(sel);
+      return;
+    }
+
+    if (e.key === 'a' || e.key === 'A') {
+      if (typeof KanvazAnnotate !== 'undefined') {
+        KanvazAnnotate.activate(sel);
+      }
+      return;
+    }
+
+    if (e.key === 'h' || e.key === 'H') {
+      if (typeof KanvazAnnotate !== 'undefined') {
+        KanvazAnnotate.toggleVisibility(sel);
+      }
+      return;
+    }
+
+    /* Arrow nudge */
+    var nudge = shift ? 10 : 1;
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); KanvazCards.nudge(sel, -nudge, 0); return; }
+    if (e.key === 'ArrowRight') { e.preventDefault(); KanvazCards.nudge(sel,  nudge, 0); return; }
+    if (e.key === 'ArrowUp')    { e.preventDefault(); KanvazCards.nudge(sel, 0, -nudge); return; }
+    if (e.key === 'ArrowDown')  { e.preventDefault(); KanvazCards.nudge(sel, 0,  nudge); return; }
+  }
+
+  return { init: init };
+
+})();

@@ -1,0 +1,105 @@
+# Kanvaz
+
+**Your canvas. Your references.**
+
+An infinite canvas for VFX artists, 3D artists, and the people who teach them.  
+Drop images, GIFs, videos, and audio. Annotate. Save. No internet. No telemetry. Your files never leave your machine.
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+---
+
+## Requirements
+
+- Node.js 18+ ([nodejs.org](https://nodejs.org))
+- npm 9+
+
+---
+
+## Run in development
+
+```bash
+npm install
+npm start
+```
+
+---
+
+## Build installers
+
+**Windows (installer + portable):**
+```bash
+npm run build:win
+```
+Output: `dist/Kanvaz Setup 2.0.1.exe` and `dist/Kanvaz 2.0.1.exe`
+
+**macOS:**
+```bash
+npm run build:mac
+```
+
+**Linux:**
+```bash
+npm run build:linux
+```
+
+**All platforms:**
+```bash
+npm run build:all
+```
+
+---
+
+## Distributing to a friend
+
+Send them the **portable `.exe`** from `/dist/`. No install needed — just run it.
+
+---
+
+## Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| Scroll | Zoom in / out |
+| Ctrl+Scroll | Fine zoom |
+| Middle mouse / Space+drag | Pan |
+| 0 | Reset zoom |
+| F | Fit all cards |
+| T | Always on top |
+| Ctrl+S | Save board |
+| Ctrl+O | Open board |
+| Ctrl+Z / Ctrl+Y | Undo / Redo |
+| Delete | Delete selected card |
+| Ctrl+D | Duplicate card |
+| P | Pin / unpin card |
+| H | Hide annotations |
+| Arrow keys | Nudge card 1px |
+| Shift+Arrow | Nudge card 10px |
+| Ctrl+Shift+F | Mood lock (fullscreen canvas) |
+| ? | Shortcuts overlay |
+| Esc | Deselect / close panels |
+
+---
+
+## File format
+
+Boards are saved as `.kanvaz` files — plain JSON. Media is embedded as base64 data URLs. Self-contained, portable, no external references.
+
+---
+
+## Known limitations
+
+These are stable, by-design limitations — not bugs, and not currently planned:
+
+- No light/dark theme toggle (dark theme only).
+- No "Tags" feature.
+- The "open on startup" setting currently has no effect.
+- `.kanvaz` files embed media as base64, so files with a lot of video/audio can get large.
+- The annotation toolbar doesn't follow the canvas if you pan/zoom while it's open.
+
+---
+
+## License
+
+MIT — free forever.  
+Made by **Atharva Patil** — Northbyte Studios, Navi Mumbai, India.

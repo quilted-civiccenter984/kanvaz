@@ -1,0 +1,808 @@
+/* main.css — Kanvaz full design system */
+
+/* ── Variables ── */
+:root {
+  --color-canvas:    #0E0E10;
+  --color-chrome:    #131318;
+  --color-surface:   #1A1A22;
+  --color-surface-2: #22222C;
+  --color-surface-3: #2A2A35;
+  --color-border:    #2E2E3A;
+  --color-border-2:  #3A3A48;
+
+  --color-accent:    #4A9EFF;
+  --color-accent-dim:#2A7EDF;
+  --color-accent-bg: rgba(74, 158, 255, 0.12);
+  --color-amber:     #F0A500;
+  --color-amber-bg:  rgba(240, 165, 0, 0.12);
+  --color-red:       #FF5A5A;
+  --color-red-bg:    rgba(255, 90, 90, 0.12);
+  --color-green:     #4CAF82;
+
+  --color-text:      #DCDCE8;
+  --color-text-2:    #A0A0B8;
+  --color-text-3:    #6A6A8A;
+  --color-text-inv:  #0E0E10;
+
+  --font-ui:   system-ui, 'Segoe UI', Arial, sans-serif;
+  --font-mono: Consolas, 'Courier New', monospace;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --titlebar-h: 36px;
+  --statusbar-h: 26px;
+  --toolbar-h: 44px;
+}
+
+/* ── Reset ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-canvas);
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* ── Layout shell ── */
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Titlebar ── */
+#titlebar {
+  display: flex;
+  align-items: center;
+  height: var(--titlebar-h);
+  background: var(--color-chrome);
+  border-bottom: 1px solid var(--color-border);
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+#titlebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 14px;
+  -webkit-app-region: no-drag;
+}
+
+#titlebar-logo .logo-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+#titlebar-logo .logo-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: 0.02em;
+}
+
+#titlebar-title {
+  flex: 1;
+  font-size: 12px;
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  -webkit-app-region: drag;
+  text-align: center;
+}
+
+#titlebar-controls {
+  display: flex;
+  align-items: center;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: var(--titlebar-h);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-2);
+  font-size: 14px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.titlebar-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.titlebar-btn.close:hover {
+  background: var(--color-red);
+  color: #fff;
+}
+
+/* ── Toolbar ── */
+#toolbar {
+  display: flex;
+  align-items: center;
+  height: var(--toolbar-h);
+  background: var(--color-chrome);
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  padding: 0 10px;
+  gap: 4px;
+  flex-shrink: 0;
+  z-index: 90;
+}
+
+.toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  color: var(--color-text-2);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  white-space: nowrap;
+}
+
+.toolbar-btn:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+.toolbar-btn.active {
+  background: var(--color-accent-bg);
+  color: var(--color-accent);
+  border-color: rgba(74, 158, 255, 0.3);
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--color-border);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+/* ── Canvas area ── */
+#canvas-container {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  background: var(--color-canvas);
+  cursor: default;
+}
+
+#canvas-container.grabbing {
+  cursor: grabbing;
+}
+
+#canvas-container.grab {
+  cursor: grab;
+}
+
+#canvas-world {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* Dot grid overlay */
+#canvas-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Empty state */
+#canvas-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+#canvas-empty.hidden {
+  display: none;
+}
+
+#canvas-empty .empty-icon {
+  width: 48px;
+  height: 48px;
+  opacity: 0.18;
+}
+
+#canvas-empty .empty-title {
+  font-size: 15px;
+  color: var(--color-text-3);
+  font-weight: 500;
+}
+
+#canvas-empty .empty-sub {
+  font-size: 12px;
+  color: var(--color-text-3);
+  opacity: 0.6;
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* Drop overlay */
+#drop-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(74, 158, 255, 0.06);
+  border: 2px dashed var(--color-accent);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+#drop-overlay.visible {
+  opacity: 1;
+}
+
+#drop-overlay .drop-label {
+  font-size: 16px;
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+/* ── Status bar ── */
+#statusbar {
+  display: flex;
+  align-items: center;
+  height: var(--statusbar-h);
+  background: var(--color-chrome);
+  border-top: 1px solid var(--color-border);
+  padding: 0 12px;
+  gap: 16px;
+  flex-shrink: 0;
+  z-index: 90;
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-3);
+  white-space: nowrap;
+}
+
+.status-item .status-label {
+  color: var(--color-text-3);
+  opacity: 0.6;
+}
+
+.status-item .status-value {
+  color: var(--color-text-2);
+}
+
+.status-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--color-border);
+}
+
+.status-spacer {
+  flex: 1;
+}
+
+#status-save {
+  color: var(--color-text-3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+#status-save.saved {
+  color: var(--color-green);
+}
+
+#status-save.unsaved {
+  color: var(--color-amber);
+}
+
+/* ── Cards ── */
+.card {
+  position: absolute;
+  border-radius: var(--radius-md);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  cursor: default;
+  user-select: none;
+  will-change: transform;
+  min-width: 80px;
+  min-height: 80px;
+}
+
+.card.selected {
+  outline: 1.5px solid var(--color-accent);
+  outline-offset: 0px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5), 0 0 0 4px var(--color-accent-bg);
+}
+
+.card:hover:not(.selected) {
+  outline: 1px solid var(--color-border-2);
+  outline-offset: 0px;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
+}
+
+.card.pinned {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5), 0 0 0 1.5px var(--color-amber);
+}
+
+/* When a card is both selected and pinned, the selection ring takes
+   visual priority — the pin dot alone signals "pinned" so the two
+   colored rings don't compete. */
+.card.selected.pinned {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5), 0 0 0 4px var(--color-accent-bg);
+}
+
+/* Card bottom bar */
+.card-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: rgba(13, 13, 16, 0.88);
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.card:hover .card-bar,
+.card.selected .card-bar {
+  opacity: 1;
+}
+
+.card-bar .card-filename {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-3);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-bar .card-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.card-bar .badge-gif {
+  background: rgba(74, 158, 255, 0.2);
+  color: var(--color-accent);
+}
+
+.card-bar .badge-vid {
+  background: rgba(240, 165, 0, 0.2);
+  color: var(--color-amber);
+}
+
+.card-bar .badge-note {
+  background: rgba(76, 175, 130, 0.2);
+  color: var(--color-green);
+}
+
+.card-bar .badge-audio {
+  background: rgba(255, 90, 90, 0.2);
+  color: var(--color-red);
+}
+
+/* Card resize handles */
+.resize-handle {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  background: #fff;
+  border-radius: 3px;
+  border: 1.5px solid var(--color-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  z-index: 10;
+  transition: opacity 0.1s, transform 0.1s;
+}
+
+.card.selected .resize-handle,
+.card:hover .resize-handle {
+  opacity: 1;
+}
+
+/* Pin indicator */
+.card-pin {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--color-amber);
+  border: 1.5px solid rgba(14, 14, 16, 0.6);
+  box-shadow: 0 0 8px rgba(240, 165, 0, 0.7);
+  display: none;
+  z-index: 5;
+}
+
+.card.pinned .card-pin {
+  display: block;
+}
+
+/* ── Note card ── */
+.card-note {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.card-note .note-body {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  color: var(--color-text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 12px;
+  caret-color: var(--color-accent);
+}
+
+.card-note .note-body::placeholder {
+  color: var(--color-text-2);
+}
+
+/* ── Video card ── */
+.card-video video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.video-scrub {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  background: rgba(13, 13, 16, 0.7);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.card:hover .video-scrub {
+  opacity: 1;
+}
+
+/* ── Audio card ── */
+
+.audio-icon-area {
+  width: 100%;
+  height: calc(100% - 48px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-surface);
+}
+
+.audio-scrub {
+  position: absolute;
+  bottom: 24px;
+  left: 0;
+  right: 0;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 6px;
+  background: rgba(13, 13, 16, 0.7);
+  /* Always visible — there's no preview frame to reveal it on hover */
+  opacity: 1;
+}
+
+.video-scrub .scrub-bar,
+.audio-scrub .scrub-bar {
+  flex: 1;
+  height: 3px;
+  background: var(--color-border-2);
+  border-radius: 2px;
+  cursor: pointer;
+  position: relative;
+}
+
+.video-scrub .scrub-fill,
+.audio-scrub .scrub-fill {
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.video-scrub .scrub-time,
+.audio-scrub .scrub-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-3);
+  white-space: nowrap;
+}
+
+/* ── Context menu ── */
+#context-menu {
+  position: fixed;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  min-width: 160px;
+  z-index: 70000;
+  pointer-events: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  display: none;
+}
+
+#context-menu.visible {
+  display: block;
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--color-text-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+}
+
+.ctx-item:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.ctx-item.danger:hover {
+  background: var(--color-red-bg);
+  color: var(--color-red);
+}
+
+.ctx-sep {
+  height: 1px;
+  background: var(--color-border);
+  margin: 3px 4px;
+}
+
+.ctx-shortcut {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-3);
+}
+
+/* ── Toasts ── */
+#toast-container {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 99999;
+  pointer-events: none;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--color-text);
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  animation: toast-in 0.2s ease;
+}
+
+.toast.error {
+  border-color: var(--color-red);
+  background: var(--color-red-bg);
+  color: var(--color-red);
+}
+
+.toast.success {
+  border-color: var(--color-green);
+  color: var(--color-green);
+}
+
+.toast.warning {
+  border-color: var(--color-amber);
+  color: var(--color-amber);
+}
+
+.toast.out {
+  animation: toast-out 0.2s ease forwards;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(8px); }
+}
+
+/* ── Dialogs ── */
+#dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 50000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  display: none;
+}
+
+#dialog-overlay.visible {
+  display: flex;
+}
+
+.dialog {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-2);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  min-width: 300px;
+  max-width: 480px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.7);
+}
+
+.dialog h2 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 10px;
+}
+
+.dialog p {
+  font-size: 13px;
+  color: var(--color-text-2);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.dialog-btns {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.btn {
+  padding: 7px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-2);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  color: var(--color-text-2);
+  background: var(--color-surface-2);
+}
+
+.btn:hover {
+  background: var(--color-surface-3);
+  color: var(--color-text);
+}
+
+.btn.primary {
+  background: var(--color-accent);
+  color: var(--color-text-inv);
+  border-color: var(--color-accent);
+}
+
+.btn.primary:hover {
+  background: var(--color-accent-dim);
+}
+
+.btn.danger {
+  background: var(--color-red-bg);
+  color: var(--color-red);
+  border-color: var(--color-red);
+}
+
+.btn.danger:hover {
+  background: var(--color-red);
+  color: #fff;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-surface-3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-2);
+}
+
+/* ── Utility ── */
+.hidden { display: none !important; }
+.invisible { visibility: hidden; }
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

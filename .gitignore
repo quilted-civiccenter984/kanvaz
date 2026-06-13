@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Old deliverable zips (dev artifacts, not part of source)
+*.zip
+
+# Internal development notes — not for public repo
+SESSION_MEMORY.md

@@ -1,0 +1,1036 @@
+/* cards.js — card engine with EVENT DELEGATION
+   All mouse interactions (select, drag, resize, video controls, GIF pause,
+   right-click menu) are handled by ONE set of listeners bound to `world`
+   at init time. Cards are looked up by data-card-id from the live `cards`
+   object — never via stale closures over per-element listeners.
+   This is the Priority 1 fix from the final audit. */
+
+var KanvazCards = (function() {
+
+  var cards = {};        /* id → card object (single source of truth) */
+  var cardCount = 0;
+  var selectedId = null;
+  var world = null;
+  var zCounter = 1;
+
+  var CARD_MIN_W = 80;
+  var CARD_MIN_H = 80;
+
+  /* ── Init ── */
+
+  function init(worldEl) {
+    world = worldEl;
+    bindDelegatedEvents();
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     EVENT DELEGATION — bound ONCE on `world`, never re-attached.
+     Cards are recreated on board load/switch but listeners here
+     never need to know about individual card elements at bind time.
+     ══════════════════════════════════════════════════════════════ */
+
+  function bindDelegatedEvents() {
+
+    /* ── mousedown: resize handles, video controls, select+drag ── */
+    world.addEventListener('mousedown', function(e) {
+      if (e.button !== 0) return;
+      var target = e.target;
+
+      /* Resize handle */
+      if (target.classList.contains('resize-handle')) {
+        e.stopPropagation();
+        e.preventDefault();
+        var rCardEl = target.closest('.card');
+        if (!rCardEl) return;
+        var rCard = cards[rCardEl.dataset.cardId];
+        if (!rCard) return;
+        startResize(rCard, rCardEl, target.dataset.handle, e);
+        return;
+      }
+
+      /* Video play/pause button */
+      var playBtn = target.closest('.media-play-btn');
+      if (playBtn) {
+        e.stopPropagation();
+        toggleVideoPlay(playBtn.closest('.card'));
+        return;
+      }
+
+      /* Video mute button */
+      var muteBtn = target.closest('.media-mute-btn');
+      if (muteBtn) {
+        e.stopPropagation();
+        toggleVideoMute(muteBtn.closest('.card'));
+        return;
+      }
+
+      /* Video scrub track */
+      var track = target.closest('.scrub-bar');
+      if (track) {
+        e.stopPropagation();
+        seekVideo(track.closest('.card'), e, track);
+        return;
+      }
+
+      /* Card body — select, bring to front, maybe drag */
+      var cardEl = target.closest('.card');
+      if (!cardEl) return; /* empty canvas — canvas.js handles pan/deselect */
+
+      var card = cards[cardEl.dataset.cardId];
+      if (!card) return;
+
+      e.stopPropagation();
+      selectCard(card.id);
+      bringToFront(card.id);
+
+      /* Let textareas/inputs/buttons receive focus normally — no drag */
+      if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.tagName === 'BUTTON') {
+        return;
+      }
+
+      if (card.pinned) return;
+
+      startDrag(card, cardEl, e);
+    });
+
+    /* ── click: GIF pause/resume toggle ── */
+    world.addEventListener('click', function(e) {
+      if (e.target.tagName !== 'IMG') return;
+      var cardEl = e.target.closest('.card-gif');
+      if (!cardEl) return;
+      var card = cards[cardEl.dataset.cardId];
+      if (!card) return;
+      toggleGifPause(e.target, card);
+    });
+
+    /* ── right-click: card context menu ── */
+    world.addEventListener('contextmenu', function(e) {
+      var cardEl = e.target.closest('.card');
+      if (!cardEl) return;
+      var card = cards[cardEl.dataset.cardId];
+      if (!card) return;
+      e.preventDefault();
+      e.stopPropagation();
+      selectCard(card.id);
+      KanvazUI.showCardContextMenu(e.clientX, e.clientY, card);
+    });
+  }
+
+  /* ── Drag (move) ── */
+
+  function startDrag(card, el, e) {
+    var startX = e.clientX;
+    var startY = e.clientY;
+    var origX  = card.x;
+    var origY  = card.y;
+    var scale  = KanvazCanvas.getScale();
+    var moved  = false;
+
+    function onMove(ev) {
+      var dx = (ev.clientX - startX) / scale;
+      var dy = (ev.clientY - startY) / scale;
+      if (!moved && Math.abs(dx) < 2 && Math.abs(dy) < 2) return;
+      moved = true;
+      card.x = origX + dx;
+      card.y = origY + dy;
+      el.style.left = card.x + 'px';
+      el.style.top  = card.y + 'px';
+    }
+
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      if (moved) {
+        KanvazApp.markDirty();
+        KanvazHistory.push();
+      }
+    }
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  /* ── Resize ── */
+
+  function startResize(card, el, dir, e) {
+    var startX  = e.clientX;
+    var startY  = e.clientY;
+    var startW  = card.w;
+    var startH  = card.h;
+    var startCX = card.x;
+    var startCY = card.y;
+    var scale   = KanvazCanvas.getScale();
+    var aspectLock  = !e.shiftKey;
+    var aspectRatio = startW / startH;
+
+    function onMove(ev) {
+      var dx = (ev.clientX - startX) / scale;
+      var dy = (ev.clientY - startY) / scale;
+      var newW = startW;
+      var newH = startH;
+      var newX = startCX;
+      var newY = startCY;
+
+      if (dir === 'br' || dir === 'mr' || dir === 'tr') newW = startW + dx;
+      if (dir === 'bl' || dir === 'ml' || dir === 'tl') { newW = startW - dx; newX = startCX + dx; }
+      if (dir === 'br' || dir === 'bc' || dir === 'bl') newH = startH + dy;
+      if (dir === 'tr' || dir === 'tc' || dir === 'tl') { newH = startH - dy; newY = startCY + dy; }
+
+      if (aspectLock && card.type !== 'note' && card.type !== 'audio') {
+        if (dir === 'br' || dir === 'tr' || dir === 'bl' || dir === 'tl') {
+          newH = newW / aspectRatio;
+        }
+      }
+
+      newW = Math.max(CARD_MIN_W, newW);
+      newH = Math.max(CARD_MIN_H, newH);
+
+      card.w = newW;
+      card.h = newH;
+      card.x = newX;
+      card.y = newY;
+
+      el.style.width  = newW + 'px';
+      el.style.height = newH + 'px';
+      el.style.left   = newX + 'px';
+      el.style.top    = newY + 'px';
+    }
+
+    function onUp() {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      if (typeof KanvazAnnotate !== 'undefined') {
+        KanvazAnnotate.resize(card.id, Math.round(card.w), Math.round(card.h));
+      }
+      KanvazApp.markDirty();
+      KanvazHistory.push();
+    }
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  /* ── Video controls (delegated) ── */
+
+  var PLAY_ICON  = '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="1,1 9,5 1,9"/></svg>';
+  var PAUSE_ICON = '<svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><rect x="1" y="1" width="3" height="8"/><rect x="6" y="1" width="3" height="8"/></svg>';
+
+  function toggleVideoPlay(cardEl) {
+    if (!cardEl) return;
+    var vid = cardEl.querySelector('video, audio');
+    var btn = cardEl.querySelector('.media-play-btn');
+    if (!vid || !btn) return;
+    if (vid.paused) {
+      vid.play();
+      btn.innerHTML = PAUSE_ICON;
+    } else {
+      vid.pause();
+      btn.innerHTML = PLAY_ICON;
+    }
+  }
+
+  function toggleVideoMute(cardEl) {
+    if (!cardEl) return;
+    var vid = cardEl.querySelector('video, audio');
+    var btn = cardEl.querySelector('.media-mute-btn');
+    if (!vid || !btn) return;
+    vid.muted = !vid.muted;
+    btn.style.color = vid.muted ? 'var(--color-text-3)' : 'var(--color-accent)';
+  }
+
+  function seekVideo(cardEl, e, track) {
+    if (!cardEl) return;
+    var vid = cardEl.querySelector('video, audio');
+    if (!vid || !vid.duration) return;
+    var rect = track.getBoundingClientRect();
+    var pct = (e.clientX - rect.left) / rect.width;
+    vid.currentTime = Math.max(0, Math.min(1, pct)) * vid.duration;
+  }
+
+  /* ── GIF pause/resume (delegated) ── */
+
+  function toggleGifPause(img, card) {
+    if (img._paused) {
+      img.src = img._origSrc;
+      img._paused = false;
+    } else {
+      var cvs = document.createElement('canvas');
+      cvs.width  = img.naturalWidth  || card.w;
+      cvs.height = img.naturalHeight || card.h;
+      var ctx = cvs.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      img.src = cvs.toDataURL('image/png');
+      img._paused = true;
+    }
+  }
+
+  /* ── ID generator ── */
+
+  function nextId() {
+    cardCount++;
+    return 'card-' + Date.now() + '-' + cardCount;
+  }
+
+  /* ── Create from media result ── */
+
+  function createFromMedia(mediaResult, pos) {
+    var id = nextId();
+    var w = Math.max(CARD_MIN_W, mediaResult.displayW || 300);
+    var h = Math.max(CARD_MIN_H, mediaResult.displayH || 200);
+
+    var card = {
+      id:       id,
+      type:     mediaResult.type,
+      dataUrl:  mediaResult.dataUrl,
+      name:     mediaResult.name,
+      path:     mediaResult.originalPath,
+      x:        pos.x,
+      y:        pos.y,
+      w:        w,
+      h:        h,
+      z:        ++zCounter,
+      pinned:   false,
+      opacity:  1.0,
+      flipH:    false,
+      flipV:    false,
+      naturalW: mediaResult.naturalW || w,
+      naturalH: mediaResult.naturalH || h,
+      annotations: []
+    };
+
+    cards[id] = card;
+    renderCard(card);
+    selectCard(id);
+    updateEmptyState();
+    updateCount();
+
+    if (typeof KanvazHistory !== 'undefined') {
+      KanvazHistory.push();
+    }
+
+    return card;
+  }
+
+  /* ── Create from dataUrl (clipboard) ── */
+
+  function createFromDataUrl(dataUrl, name, pos) {
+    KanvazMedia.loadFromDataUrl(dataUrl, name, function(result, err) {
+      if (err || !result) {
+        KanvazErrors.handle('MEDIA_LOAD_FAIL', err);
+        return;
+      }
+      createFromMedia(result, pos);
+      KanvazUI.toast('Image pasted', 'success');
+    });
+  }
+
+  /* ── Create note ── */
+
+  function createNote(x, y) {
+    var id = nextId();
+    var card = {
+      id:       id,
+      type:     'note',
+      dataUrl:  null,
+      name:     'Note',
+      path:     null,
+      x:        x,
+      y:        y,
+      w:        240,
+      h:        160,
+      z:        ++zCounter,
+      pinned:   false,
+      text:     '',
+      annotations: []
+    };
+
+    cards[id] = card;
+    renderCard(card);
+    selectCard(id);
+    updateEmptyState();
+    updateCount();
+
+    /* Focus the textarea */
+    setTimeout(function() {
+      var el = document.getElementById(id);
+      if (el) {
+        var ta = el.querySelector('.note-body');
+        if (ta) ta.focus();
+      }
+    }, 50);
+
+    if (typeof KanvazHistory !== 'undefined') {
+      KanvazHistory.push();
+    }
+
+    return card;
+  }
+
+  /* ── Render card DOM ──
+     NOTE: el.id AND el.dataset.cardId are both set to card.id.
+     el.id is used by ~15 lookup sites (document.getElementById).
+     el.dataset.cardId is the source of truth for delegated handlers
+     resolving DOM → data via closest('.card'). Both always match. */
+
+  function renderCard(card) {
+    var el = document.createElement('div');
+    el.id = card.id;
+    el.dataset.cardId = card.id;
+    el.className = 'card card-' + card.type;
+    el.style.left   = card.x + 'px';
+    el.style.top    = card.y + 'px';
+    el.style.width  = card.w + 'px';
+    el.style.height = card.h + 'px';
+    el.style.zIndex = card.z;
+
+    if (card.type === 'image') {
+      buildImageCard(el, card);
+    } else if (card.type === 'gif') {
+      buildGifCard(el, card);
+    } else if (card.type === 'video') {
+      buildVideoCard(el, card);
+    } else if (card.type === 'audio') {
+      buildAudioCard(el, card);
+    } else if (card.type === 'note') {
+      buildNoteCard(el, card);
+    }
+
+    buildCardBar(el, card);
+    buildPinIndicator(el);
+    buildResizeHandles(el);
+
+    world.appendChild(el);
+  }
+
+  /* ── Image card ── */
+
+  function buildImageCard(el, card) {
+    var img = document.createElement('img');
+    img.src = card.dataUrl;
+    img.style.cssText = 'display:block;width:100%;height:100%;object-fit:cover;pointer-events:none;';
+    img.onerror = function() {
+      el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:var(--color-surface);color:var(--color-text-3);font-size:12px;">Missing media</div>';
+    };
+    el.appendChild(img);
+  }
+
+  /* ── GIF card ── */
+
+  function buildGifCard(el, card) {
+    var img = document.createElement('img');
+    img.src = card.dataUrl;
+    img.style.cssText = 'display:block;width:100%;height:calc(100% - 24px);object-fit:cover;cursor:pointer;';
+    img.title = 'Click to pause / resume';
+    img._origSrc = card.dataUrl;
+    img._paused = false;
+    el.appendChild(img);
+  }
+
+  /* ── Video card ── */
+
+  function buildVideoCard(el, card) {
+    var vid = document.createElement('video');
+    vid.src = card.dataUrl;
+    vid.autoplay = true;
+    vid.muted = true;
+    vid.loop = true;
+    vid.playsInline = true;
+    /* 100% height minus scrub bar (20px) minus card bar (24px) */
+    vid.style.cssText = 'display:block;width:100%;height:calc(100% - 44px);object-fit:cover;pointer-events:none;';
+    el.appendChild(vid);
+
+    /* Scrub bar */
+    var scrub = document.createElement('div');
+    scrub.className = 'video-scrub';
+
+    /* Play/pause button — class-based for delegation */
+    var playBtn = document.createElement('button');
+    playBtn.className = 'media-play-btn';
+    playBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--color-text-2);padding:0;display:flex;align-items:center;';
+    playBtn.innerHTML = PAUSE_ICON; /* autoplay starts playing */
+    playBtn.title = 'Play/Pause';
+
+    /* Scrub track */
+    var track = document.createElement('div');
+    track.className = 'scrub-bar';
+    var fill = document.createElement('div');
+    fill.className = 'scrub-fill';
+    fill.style.width = '0%';
+    track.appendChild(fill);
+
+    /* Time display */
+    var timeEl = document.createElement('span');
+    timeEl.className = 'scrub-time';
+    timeEl.textContent = '0:00';
+
+    /* Mute button — class-based for delegation */
+    var muteBtn = document.createElement('button');
+    muteBtn.className = 'media-mute-btn';
+    muteBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--color-text-3);padding:0;display:flex;align-items:center;font-family:var(--font-mono);font-size:9px;';
+    muteBtn.textContent = 'M';
+    muteBtn.title = 'Toggle mute';
+
+    scrub.appendChild(playBtn);
+    scrub.appendChild(track);
+    scrub.appendChild(timeEl);
+    scrub.appendChild(muteBtn);
+    el.appendChild(scrub);
+
+    /* Update scrub on timeupdate — intrinsic to this video element,
+       recreated and discarded together with it, not part of the
+       delegation refactor. */
+    vid.addEventListener('timeupdate', function() {
+      if (!vid.duration) return;
+      var pct = (vid.currentTime / vid.duration) * 100;
+      fill.style.width = pct + '%';
+      timeEl.textContent = KanvazMedia.formatTime(vid.currentTime) + ' / ' + KanvazMedia.formatTime(vid.duration);
+    });
+  }
+
+  /* ── Audio card ── */
+
+  function buildAudioCard(el, card) {
+    /* Icon area — fills the card above the scrub bar + card bar */
+    var iconArea = document.createElement('div');
+    iconArea.className = 'audio-icon-area';
+    iconArea.innerHTML = [
+      '<svg width="44" height="44" viewBox="0 0 36 36" fill="none">',
+        '<path d="M13 24V9.6L27 6v14.4" stroke="var(--color-accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+        '<circle cx="9" cy="24" r="4" stroke="var(--color-accent)" stroke-width="2"/>',
+        '<circle cx="23" cy="20.4" r="4" stroke="var(--color-accent)" stroke-width="2"/>',
+      '</svg>'
+    ].join('');
+    el.appendChild(iconArea);
+
+    /* Audio element — hidden, playback only. Not autoplayed/looped
+       (multiple audio cards autoplaying at once would be unpleasant). */
+    var aud = document.createElement('audio');
+    aud.src = card.dataUrl;
+    aud.preload = 'metadata';
+    aud.loop = false;
+    aud.style.display = 'none';
+    el.appendChild(aud);
+
+    /* Scrub bar — always visible (no preview frame to hover-reveal it) */
+    var scrub = document.createElement('div');
+    scrub.className = 'audio-scrub';
+
+    var playBtn = document.createElement('button');
+    playBtn.className = 'media-play-btn';
+    playBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--color-text-2);padding:0;display:flex;align-items:center;';
+    playBtn.innerHTML = PLAY_ICON; /* audio does not autoplay */
+    playBtn.title = 'Play/Pause';
+
+    var track = document.createElement('div');
+    track.className = 'scrub-bar';
+    var fill = document.createElement('div');
+    fill.className = 'scrub-fill';
+    fill.style.width = '0%';
+    track.appendChild(fill);
+
+    var timeEl = document.createElement('span');
+    timeEl.className = 'scrub-time';
+    timeEl.textContent = '0:00';
+
+    var muteBtn = document.createElement('button');
+    muteBtn.className = 'media-mute-btn';
+    muteBtn.style.cssText = 'background:none;border:none;cursor:pointer;color:var(--color-text-3);padding:0;display:flex;align-items:center;font-family:var(--font-mono);font-size:9px;';
+    muteBtn.textContent = 'M';
+    muteBtn.title = 'Toggle mute';
+
+    scrub.appendChild(playBtn);
+    scrub.appendChild(track);
+    scrub.appendChild(timeEl);
+    scrub.appendChild(muteBtn);
+    el.appendChild(scrub);
+
+    aud.addEventListener('timeupdate', function() {
+      if (!aud.duration) return;
+      var pct = (aud.currentTime / aud.duration) * 100;
+      fill.style.width = pct + '%';
+      timeEl.textContent = KanvazMedia.formatTime(aud.currentTime) + ' / ' + KanvazMedia.formatTime(aud.duration);
+    });
+
+    /* Reset to play icon when playback ends naturally (not looped) */
+    aud.addEventListener('ended', function() {
+      playBtn.innerHTML = PLAY_ICON;
+    });
+  }
+
+  /* ── Note card ── */
+
+  function buildNoteCard(el, card) {
+    var ta = document.createElement('textarea');
+    ta.className = 'note-body';
+    ta.placeholder = 'Type a note…';
+    ta.value = card.text || '';
+    ta.style.cssText = 'width:100%;height:100%;padding-bottom:28px;';
+
+    ta.addEventListener('input', function() {
+      card.text = ta.value;
+      KanvazApp.markDirty();
+    });
+
+    el.appendChild(ta);
+  }
+
+  /* ── Card bar (filename + badge) ── */
+
+  function buildCardBar(el, card) {
+    var bar = document.createElement('div');
+    bar.className = 'card-bar';
+
+    var name = document.createElement('span');
+    name.className = 'card-filename ellipsis';
+    name.textContent = card.name;
+    bar.appendChild(name);
+
+    if (card.type === 'gif') {
+      var badge = document.createElement('span');
+      badge.className = 'card-badge badge-gif';
+      badge.textContent = 'GIF';
+      bar.appendChild(badge);
+    } else if (card.type === 'video') {
+      var vbadge = document.createElement('span');
+      vbadge.className = 'card-badge badge-vid';
+      vbadge.textContent = 'VID';
+      bar.appendChild(vbadge);
+    } else if (card.type === 'audio') {
+      var abadge = document.createElement('span');
+      abadge.className = 'card-badge badge-audio';
+      abadge.textContent = 'AUDIO';
+      bar.appendChild(abadge);
+    } else if (card.type === 'note') {
+      var nbadge = document.createElement('span');
+      nbadge.className = 'card-badge badge-note';
+      nbadge.textContent = 'NOTE';
+      bar.appendChild(nbadge);
+    }
+
+    el.appendChild(bar);
+  }
+
+  /* ── Pin indicator ── */
+
+  function buildPinIndicator(el) {
+    var pin = document.createElement('div');
+    pin.className = 'card-pin';
+    el.appendChild(pin);
+  }
+
+  /* ── Resize handles — pure DOM markers, no listeners (delegated) ── */
+
+  function buildResizeHandles(el) {
+    var positions = [
+      { name: 'tl', style: 'top:-5.5px;left:-5.5px;cursor:nw-resize;' },
+      { name: 'tc', style: 'top:-5.5px;left:50%;transform:translateX(-50%);cursor:n-resize;' },
+      { name: 'tr', style: 'top:-5.5px;right:-5.5px;cursor:ne-resize;' },
+      { name: 'ml', style: 'top:50%;left:-5.5px;transform:translateY(-50%);cursor:w-resize;' },
+      { name: 'mr', style: 'top:50%;right:-5.5px;transform:translateY(-50%);cursor:e-resize;' },
+      { name: 'bl', style: 'bottom:-5.5px;left:-5.5px;cursor:sw-resize;' },
+      { name: 'bc', style: 'bottom:-5.5px;left:50%;transform:translateX(-50%);cursor:s-resize;' },
+      { name: 'br', style: 'bottom:-5.5px;right:-5.5px;cursor:se-resize;' }
+    ];
+
+    for (var i = 0; i < positions.length; i++) {
+      var h = document.createElement('div');
+      h.className = 'resize-handle';
+      h.style.cssText += positions[i].style;
+      h.dataset.handle = positions[i].name;
+      el.appendChild(h);
+    }
+  }
+
+  /* ── Select ── */
+
+  function selectCard(id) {
+    if (selectedId && selectedId !== id) {
+      var prev = document.getElementById(selectedId);
+      if (prev) prev.classList.remove('selected');
+    }
+    selectedId = id;
+    var el = document.getElementById(id);
+    if (el) el.classList.add('selected');
+  }
+
+  /* ── Z-order ── */
+
+  function bringToFront(id) {
+    var card = cards[id];
+    if (!card) return;
+    card.z = ++zCounter;
+    var el = document.getElementById(id);
+    if (el) el.style.zIndex = card.z;
+  }
+
+  /* ── Delete ── */
+
+  function deleteCard(id) {
+    var card = cards[id];
+    if (!card) return;
+
+    var confirmDel = false;
+    if (typeof KanvazUI_Extended !== 'undefined') {
+      var s = KanvazUI_Extended.getSettings();
+      confirmDel = s && s.confirmDelete;
+    }
+
+    if (confirmDel) {
+      KanvazUI.showDialog(
+        'Delete card?',
+        'Remove "' + card.name + '" from the canvas?',
+        [
+          { label: 'Delete', cls: 'danger', action: function() { doDelete(id); } },
+          { label: 'Cancel', cls: '',       action: function() {} }
+        ]
+      );
+    } else {
+      doDelete(id);
+    }
+  }
+
+  function doDelete(id) {
+    var card = cards[id];
+    if (!card) return;
+
+    var el = document.getElementById(id);
+    if (el) el.parentNode.removeChild(el);
+
+    if (typeof KanvazAnnotate !== 'undefined') KanvazAnnotate.detach(id);
+
+    if (typeof KanvazHistory !== 'undefined') {
+      KanvazHistory.push();
+    }
+
+    delete cards[id];
+    if (selectedId === id) selectedId = null;
+
+    updateEmptyState();
+    updateCount();
+    KanvazApp.markDirty();
+  }
+
+  /* ── Duplicate ── */
+
+  function duplicateCard(id) {
+    var src = cards[id];
+    if (!src) return;
+
+    var newCard = JSON.parse(JSON.stringify(src));
+    newCard.id  = nextId();
+    newCard.x  += 20;
+    newCard.y  += 20;
+    newCard.z   = ++zCounter;
+
+    cards[newCard.id] = newCard;
+    renderCard(newCard);
+    selectCard(newCard.id);
+    updateCount();
+    KanvazApp.markDirty();
+    KanvazHistory.push();
+    KanvazUI.toast('Duplicated');
+  }
+
+  /* ── Pin ── */
+
+  function togglePin(id) {
+    var card = cards[id];
+    if (!card) return;
+    card.pinned = !card.pinned;
+    var el = document.getElementById(id);
+    if (el) {
+      if (card.pinned) {
+        el.classList.add('pinned');
+      } else {
+        el.classList.remove('pinned');
+      }
+    }
+    KanvazUI.toast(card.pinned ? 'Card pinned' : 'Card unpinned');
+    KanvazApp.markDirty();
+    KanvazHistory.push();
+  }
+
+  /* ── Helpers ── */
+
+  function updateEmptyState() {
+    var hasCards = Object.keys(cards).length > 0;
+    KanvazApp.updateEmptyState(!hasCards);
+  }
+
+  function updateCount() {
+    var n = Object.keys(cards).length;
+    KanvazApp.updateCardCount(n);
+  }
+
+  /* ── Serialise / deserialise ── */
+
+  function serialise() {
+    var out = [];
+    for (var id in cards) {
+      var c = cards[id];
+      var strokes = (typeof KanvazAnnotate !== 'undefined')
+        ? KanvazAnnotate.getStrokes(id)
+        : (c.annotations || []);
+      out.push({
+        id:          c.id,
+        type:        c.type,
+        dataUrl:     c.dataUrl,
+        name:        c.name,
+        path:        c.path,
+        x:           c.x,
+        y:           c.y,
+        w:           c.w,
+        h:           c.h,
+        z:           c.z,
+        pinned:      c.pinned,
+        text:        c.text || '',
+        opacity:     c.opacity !== undefined ? c.opacity : 1.0,
+        flipH:       c.flipH  || false,
+        flipV:       c.flipV  || false,
+        naturalW:    c.naturalW || c.w,
+        naturalH:    c.naturalH || c.h,
+        annotations: strokes
+      });
+    }
+    return out;
+  }
+
+  function deserialise(arr) {
+    clearAll();
+    if (!arr) return;
+    for (var i = 0; i < arr.length; i++) {
+      var c = arr[i];
+      cards[c.id] = c;
+      renderCard(c);
+      if (c.z > zCounter) zCounter = c.z;
+
+      /* Restore opacity */
+      if (c.opacity !== undefined && c.opacity !== 1.0) {
+        var el = document.getElementById(c.id);
+        if (el) el.style.opacity = c.opacity;
+      }
+
+      /* Restore flip */
+      if (c.flipH || c.flipV) {
+        var fel = document.getElementById(c.id);
+        if (fel) {
+          var media = fel.querySelector('img, video');
+          if (media) {
+            var sx = c.flipH ? -1 : 1;
+            var sy = c.flipV ? -1 : 1;
+            media.style.transform = 'scale(' + sx + ',' + sy + ')';
+          }
+        }
+      }
+
+      /* Restore annotations */
+      if (c.annotations && c.annotations.length && typeof KanvazAnnotate !== 'undefined') {
+        var cardEl = document.getElementById(c.id);
+        if (cardEl) KanvazAnnotate.loadStrokes(c.id, c.annotations, cardEl);
+      }
+    }
+    updateEmptyState();
+    updateCount();
+  }
+
+  function clearAll() {
+    if (typeof KanvazAnnotate !== 'undefined') KanvazAnnotate.detachAll();
+    for (var id in cards) {
+      var el = document.getElementById(id);
+      if (el) el.parentNode.removeChild(el);
+    }
+    cards = {};
+    selectedId = null;
+    updateEmptyState();
+    updateCount();
+  }
+
+  function getAll() {
+    return cards;
+  }
+
+  /* ── Nudge (arrow keys) ── */
+
+  function nudge(id, dx, dy) {
+    var card = cards[id];
+    if (!card || card.pinned) return;
+    card.x += dx;
+    card.y += dy;
+    var el = document.getElementById(id);
+    if (el) {
+      el.style.left = card.x + 'px';
+      el.style.top  = card.y + 'px';
+    }
+    KanvazApp.markDirty();
+  }
+
+  /* ── Send to back ── */
+
+  function sendToBack(id) {
+    var card = cards[id];
+    if (!card) return;
+    card.z = 0;
+    var el = document.getElementById(id);
+    if (el) el.style.zIndex = 0;
+    KanvazApp.markDirty();
+  }
+
+  /* ── Flip ── */
+
+  function flipCard(id, axis) {
+    var card = cards[id];
+    if (!card) return;
+    if (!card.flipH) card.flipH = false;
+    if (!card.flipV) card.flipV = false;
+    if (axis === 'h') card.flipH = !card.flipH;
+    if (axis === 'v') card.flipV = !card.flipV;
+    var el = document.getElementById(id);
+    if (el) {
+      var sx = card.flipH ? -1 : 1;
+      var sy = card.flipV ? -1 : 1;
+      var media = el.querySelector('img, video');
+      if (media) media.style.transform = 'scale(' + sx + ',' + sy + ')';
+    }
+    KanvazApp.markDirty();
+    KanvazHistory.push();
+  }
+
+  /* ── Reset size to natural dimensions capped at 600px ── */
+
+  function resetSize(id) {
+    var card = cards[id];
+    if (!card) return;
+    var w = Math.min(card.naturalW || card.w, KanvazMedia.MAX_DROP_WIDTH);
+    var ratio = w / (card.naturalW || card.w);
+    var h = Math.round((card.naturalH || card.h) * ratio);
+    card.w = w;
+    card.h = h;
+    var el = document.getElementById(id);
+    if (el) {
+      el.style.width  = w + 'px';
+      el.style.height = h + 'px';
+    }
+    if (typeof KanvazAnnotate !== 'undefined') {
+      KanvazAnnotate.resize(id, Math.round(w), Math.round(h));
+    }
+    KanvazApp.markDirty();
+    KanvazHistory.push();
+  }
+
+  /* ── Opacity picker ── */
+
+  function showOpacityPicker(id, x, y) {
+    var existing = document.getElementById('opacity-picker');
+    if (existing) existing.parentNode.removeChild(existing);
+
+    var card = cards[id];
+    if (!card) return;
+    var currentOpacity = card.opacity !== undefined ? card.opacity : 1.0;
+
+    var picker = document.createElement('div');
+    picker.id = 'opacity-picker';
+    picker.style.cssText = [
+      'position:fixed',
+      'left:' + x + 'px',
+      'top:' + y + 'px',
+      'background:var(--color-surface)',
+      'border:1px solid var(--color-border-2)',
+      'border-radius:8px',
+      'padding:12px 14px',
+      'z-index:20001',
+      'box-shadow:0 8px 24px rgba(0,0,0,0.6)',
+      'min-width:180px'
+    ].join(';');
+
+    var label = document.createElement('div');
+    label.style.cssText = 'font-size:11px;color:var(--color-text-3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.06em;';
+    label.textContent = 'Opacity';
+    picker.appendChild(label);
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;';
+
+    var slider = document.createElement('input');
+    slider.type = 'range';
+    slider.min = 0.1;
+    slider.max = 1.0;
+    slider.step = 0.05;
+    slider.value = currentOpacity;
+    slider.style.cssText = 'flex:1;accent-color:var(--color-accent);';
+
+    var valLabel = document.createElement('span');
+    valLabel.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--color-text-2);min-width:32px;text-align:right;';
+    valLabel.textContent = Math.round(currentOpacity * 100) + '%';
+
+    slider.oninput = function() {
+      var val = parseFloat(slider.value);
+      card.opacity = val;
+      valLabel.textContent = Math.round(val * 100) + '%';
+      var el = document.getElementById(id);
+      if (el) el.style.opacity = val;
+      KanvazApp.markDirty();
+    };
+
+    row.appendChild(slider);
+    row.appendChild(valLabel);
+    picker.appendChild(row);
+    document.body.appendChild(picker);
+
+    /* Auto-close on outside click */
+    setTimeout(function() {
+      document.addEventListener('mousedown', function closePicker(e) {
+        if (!picker.contains(e.target)) {
+          if (picker.parentNode) picker.parentNode.removeChild(picker);
+          document.removeEventListener('mousedown', closePicker);
+          KanvazHistory.push();
+        }
+      });
+    }, 50);
+  }
+
+  /* ── Select all ── */
+
+  function selectAll() {
+    var ids = Object.keys(cards);
+    if (!ids.length) return;
+    for (var i = 0; i < ids.length; i++) {
+      var el = document.getElementById(ids[i]);
+      if (el) el.classList.add('selected');
+    }
+    selectedId = ids[ids.length - 1];
+    KanvazUI.toast('All ' + ids.length + ' cards selected');
+  }
+
+  function deselectAll() {
+    var allEls = document.querySelectorAll('.card.selected');
+    for (var i = 0; i < allEls.length; i++) {
+      allEls[i].classList.remove('selected');
+    }
+    selectedId = null;
+  }
+
+  return {
+    init:              init,
+    createFromMedia:   createFromMedia,
+    createFromDataUrl: createFromDataUrl,
+    createNote:        createNote,
+    selectCard:        selectCard,
+    selectAll:         selectAll,
+    deselectAll:       deselectAll,
+    deleteCard:        deleteCard,
+    duplicateCard:     duplicateCard,
+    togglePin:         togglePin,
+    bringToFront:      bringToFront,
+    sendToBack:        sendToBack,
+    flipCard:          flipCard,
+    resetSize:         resetSize,
+    showOpacityPicker: showOpacityPicker,
+    nudge:             nudge,
+    serialise:         serialise,
+    deserialise:       deserialise,
+    clearAll:          clearAll,
+    getAll:            getAll,
+    getSelected:       function() { return selectedId; }
+  };
+
+})();
