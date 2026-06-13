@@ -8,9 +8,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/kanvaz.git"
+    "url": "https://github.com/painz-code/kanvaz.git"
   },
-  "homepage": "https://github.com/YOUR_USERNAME/kanvaz#readme",
+  "homepage": "https://github.com/painz-code/kanvaz#readme",
   "scripts": {
     "start": "electron .",
     "build:win": "electron-builder --win",
