@@ -156,7 +156,9 @@ var KanvazUI_Extended = (function() {
             if (SETTINGS_DEFAULTS.hasOwnProperty(k)) settings[k] = loaded[k];
           }
           applySettings();
-        } catch (e) {}
+        } catch (e) {
+          console.warn('[Kanvaz] Failed to parse settings, using defaults:', e.message);
+        }
       }
     });
   }
@@ -201,6 +203,16 @@ var KanvazUI_Extended = (function() {
       hint.innerHTML = settings.doubleClickCreatesNote
         ? 'Double-click to add a note · Ctrl+V to paste an image'
         : 'Right-click for options · Ctrl+V to paste an image';
+    }
+
+    /* Always on top — apply persisted value */
+    if (typeof KanvazBridge !== 'undefined' && KanvazBridge.setAlwaysOnTop) {
+      KanvazBridge.setAlwaysOnTop(!!settings.alwaysOnTop);
+    }
+
+    /* Restart autosave timer with current interval setting */
+    if (typeof KanvazBoards !== 'undefined' && KanvazBoards.startAutosave) {
+      KanvazBoards.startAutosave();
     }
   }
 
@@ -354,7 +366,7 @@ var KanvazUI_Extended = (function() {
       '</svg>',
       '<div style="font-size:22px;font-weight:700;color:var(--color-text);margin-bottom:4px;">Kanvaz</div>',
       '<div style="font-size:13px;color:var(--color-text-3);margin-bottom:20px;">Your canvas. Your references.</div>',
-      '<div style="font-size:12px;color:var(--color-text-3);margin-bottom:16px;font-family:var(--font-mono);">Version 2.0.1</div>',
+      '<div style="font-size:12px;color:var(--color-text-3);margin-bottom:16px;font-family:var(--font-mono);">Version 2.0.2</div>',
       '<div style="font-size:13px;color:var(--color-text-2);margin-bottom:6px;">Made by <span style="color:var(--color-text);">Atharva Patil</span> — Northbyte Studios</div>',
       '<div style="font-size:12px;color:var(--color-text-3);margin-bottom:20px;">Navi Mumbai, India</div>',
       '<div style="font-size:12px;color:var(--color-text-3);line-height:1.7;margin-bottom:20px;">Built for VFX artists, 3D artists,<br>and the people who teach them.</div>',

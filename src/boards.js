@@ -7,7 +7,7 @@ var KanvazBoards = (function() {
   var currentPath   = null;
   var autosaveTimer = null;
   var AUTOSAVE_MS   = 30000;
-  var VERSION       = '2.0.1';
+  var VERSION       = '2.0.2';
 
   /* ── Init ── */
 
@@ -371,9 +371,16 @@ var KanvazBoards = (function() {
 
   function startAutosave() {
     if (autosaveTimer) clearInterval(autosaveTimer);
+    var intervalMs = AUTOSAVE_MS;
+    if (typeof KanvazUI_Extended !== 'undefined') {
+      var s = KanvazUI_Extended.getSettings();
+      if (s && s.autosaveInterval && s.autosaveInterval >= 10) {
+        intervalMs = s.autosaveInterval * 1000;
+      }
+    }
     autosaveTimer = setInterval(function() {
       doAutosave();
-    }, AUTOSAVE_MS);
+    }, intervalMs);
   }
 
   function doAutosave() {
@@ -395,14 +402,18 @@ var KanvazBoards = (function() {
   /* ── Startup screen ── */
 
   function showStartupScreen() {
-    /* Respect openOnStartup setting */
-    if (typeof KanvazUI_Extended !== 'undefined') {
-      var s = KanvazUI_Extended.getSettings();
-      if (s && s.openOnStartup === false) return;
-    }
-
+    /* Respect openOnStartup setting — check is INSIDE the async callback
+       rather than at the top, because loadSettings() runs asynchronously
+       via IPC and may not have completed yet when showStartupScreen() is
+       first called during init(). By the time getRecent() resolves, the
+       settings IPC will have resolved too. */
     KanvazBridge.getRecent().then(function(recent) {
       if (!recent || !recent.length) return;
+
+      if (typeof KanvazUI_Extended !== 'undefined') {
+        var s = KanvazUI_Extended.getSettings();
+        if (s && s.openOnStartup === false) return;
+      }
 
       var overlay = document.createElement('div');
       overlay.id = 'startup-screen';
@@ -552,7 +563,8 @@ var KanvazBoards = (function() {
     saveBoardAs:  saveBoardAs,
     loadFromJSON: loadFromJSON,
     serialise:    serialise,
-    doAutosave:   doAutosave
+    doAutosave:      doAutosave,
+    startAutosave:   startAutosave
   };
 
 })();

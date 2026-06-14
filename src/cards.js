@@ -571,6 +571,10 @@ var KanvazCards = (function() {
       KanvazApp.markDirty();
     });
 
+    ta.addEventListener('blur', function() {
+      KanvazHistory.push();
+    });
+
     el.appendChild(ta);
   }
 
@@ -693,14 +697,15 @@ var KanvazCards = (function() {
     var card = cards[id];
     if (!card) return;
 
+    /* Pause any playing media before removing the DOM element */
     var el = document.getElementById(id);
-    if (el) el.parentNode.removeChild(el);
+    if (el) {
+      var mediaEl = el.querySelector('video, audio');
+      if (mediaEl) mediaEl.pause();
+      el.parentNode.removeChild(el);
+    }
 
     if (typeof KanvazAnnotate !== 'undefined') KanvazAnnotate.detach(id);
-
-    if (typeof KanvazHistory !== 'undefined') {
-      KanvazHistory.push();
-    }
 
     delete cards[id];
     if (selectedId === id) selectedId = null;
@@ -708,6 +713,7 @@ var KanvazCards = (function() {
     updateEmptyState();
     updateCount();
     KanvazApp.markDirty();
+    KanvazHistory.push();
   }
 
   /* ── Duplicate ── */
@@ -851,6 +857,8 @@ var KanvazCards = (function() {
 
   /* ── Nudge (arrow keys) ── */
 
+  var nudgeTimer = null;
+
   function nudge(id, dx, dy) {
     var card = cards[id];
     if (!card || card.pinned) return;
@@ -862,6 +870,15 @@ var KanvazCards = (function() {
       el.style.top  = card.y + 'px';
     }
     KanvazApp.markDirty();
+
+    /* Debounced history push — wait 300ms after last nudge before
+       recording, so holding an arrow key doesn't flood the undo stack
+       with 50 entries of 1px moves. */
+    if (nudgeTimer) clearTimeout(nudgeTimer);
+    nudgeTimer = setTimeout(function() {
+      nudgeTimer = null;
+      KanvazHistory.push();
+    }, 300);
   }
 
   /* ── Send to back ── */
@@ -873,6 +890,7 @@ var KanvazCards = (function() {
     var el = document.getElementById(id);
     if (el) el.style.zIndex = 0;
     KanvazApp.markDirty();
+    KanvazHistory.push();
   }
 
   /* ── Flip ── */

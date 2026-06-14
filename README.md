@@ -43,7 +43,7 @@ npm start
 ```bash
 npm run build:win
 ```
-Output: `dist/Kanvaz Setup 2.0.1.exe` and `dist/Kanvaz 2.0.1.exe`
+Output: `dist/Kanvaz Setup 2.0.2.exe` and `dist/Kanvaz 2.0.2.exe`
 
 **macOS:**
 ```bash
@@ -79,11 +79,14 @@ Send them the **portable `.exe`** from `/dist/`. No install needed — just run 
 | F | Fit all cards |
 | T | Always on top |
 | Ctrl+S | Save board |
+| Ctrl+Shift+S | Save board as new file |
 | Ctrl+O | Open board |
 | Ctrl+Z / Ctrl+Y | Undo / Redo |
+| Ctrl+A | Select all cards |
 | Delete | Delete selected card |
 | Ctrl+D | Duplicate card |
 | P | Pin / unpin card |
+| A | Annotate selected card |
 | H | Hide annotations |
 | Arrow keys | Nudge card 1px |
 | Shift+Arrow | Nudge card 10px |

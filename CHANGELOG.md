@@ -2,6 +2,36 @@
 
 All notable changes to Kanvaz are documented here.
 
+## [2.0.2]
+- Fixed: **Undo** could wipe the entire board when undoing back to the
+  initial state after loading a file — the undo baseline was incorrectly
+  set to an empty board instead of the loaded board state.
+- Fixed: **Delete card** history was recorded before the card was actually
+  removed, causing the undo stack to briefly get out of sync with the
+  screen. Delete now also pauses any playing video/audio before removing
+  the card element.
+- Fixed: **Arrow-key nudge** was invisible to undo — nudging a card with
+  arrow keys couldn't be undone. Now records a single undo step after
+  you stop nudging (debounced, so holding an arrow key doesn't flood
+  the undo stack).
+- Fixed: **Note text editing** was invisible to undo — typing in a note
+  card couldn't be undone. Now records an undo step when you click away
+  from the note (on blur).
+- Fixed: **Send to back** (right-click menu) was invisible to undo.
+- Fixed: **Autosave interval** setting in Settings had no effect — the
+  timer was hardcoded to 30 seconds regardless of the setting value.
+- Fixed: **Default card width** setting had no effect — the drop-width
+  cap was hardcoded to 600px regardless of the setting value.
+- Fixed: **Always on top** (T key) didn't persist across restarts. Now
+  saves to settings and applies automatically on launch.
+- Fixed: **Show recent on startup** setting had no effect due to an
+  init-order timing issue — the setting was checked before it had loaded
+  from disk.
+- Fixed: corrupted settings.json was silently ignored — now logs a
+  warning and falls back to defaults.
+- Added missing shortcuts to README: A (annotate), Ctrl+A (select all),
+  Ctrl+Shift+S (Save As).
+
 ## [2.0.1] — Final release
 - Identity update: now made by Atharva Patil (Northbyte Studios).
 - Updated docs and in-app About screen to reflect final-release status.

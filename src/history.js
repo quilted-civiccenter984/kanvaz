@@ -93,7 +93,7 @@ var KanvazHistory = (function() {
   function clear() {
     stack   = [];
     pointer = -1;
-    stack.push([]);
+    stack.push(snapshot());
     pointer = 0;
     updateUI();
   }

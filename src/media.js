@@ -71,9 +71,14 @@ var KanvazMedia = (function() {
   /* ── Cap size to MAX_DROP_WIDTH, preserve aspect ── */
 
   function capSize(w, h) {
-    if (w <= MAX_DROP_WIDTH) return { w: w, h: h };
-    var ratio = MAX_DROP_WIDTH / w;
-    return { w: MAX_DROP_WIDTH, h: Math.round(h * ratio) };
+    var maxW = MAX_DROP_WIDTH;
+    if (typeof KanvazUI_Extended !== 'undefined') {
+      var s = KanvazUI_Extended.getSettings();
+      if (s && s.defaultCardW && s.defaultCardW >= 80) maxW = s.defaultCardW;
+    }
+    if (w <= maxW) return { w: w, h: h };
+    var ratio = maxW / w;
+    return { w: maxW, h: Math.round(h * ratio) };
   }
 
   /* ── Load from file path via bridge ── */

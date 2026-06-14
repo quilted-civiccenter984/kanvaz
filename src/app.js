@@ -178,6 +178,14 @@ var KanvazApp = (function() {
     if (btn) {
       btn.style.color = alwaysOnTop ? 'var(--color-accent)' : '';
     }
+    /* Persist to settings so the value survives restart */
+    if (typeof KanvazUI_Extended !== 'undefined') {
+      var s = KanvazUI_Extended.getSettings();
+      if (s) {
+        s.alwaysOnTop = alwaysOnTop;
+        KanvazBridge.writeSettings(JSON.stringify(s));
+      }
+    }
     KanvazUI.toast(alwaysOnTop ? 'Always on top: on' : 'Always on top: off');
   }
 
